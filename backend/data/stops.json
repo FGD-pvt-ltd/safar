@@ -1,0 +1,14 @@
+[
+  {
+    "id": "STOP_001",
+    "name": "Tambaram",
+    "type": "rail",
+    "area": "Chennai"
+  },
+  {
+    "id": "STOP_002",
+    "name": "Guindy",
+    "type": "rail",
+    "area": "Chennai"
+  }
+]
