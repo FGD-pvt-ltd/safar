@@ -26,8 +26,9 @@ function setDisruption(connectionId, details = {}) {
     connectionId,
     status,
     delayMinutes: status === "delayed" ? delayMinutes : 0,
-    reason: details.reason || "Simulated disruption",
+    reason: String(details.reason || "Simulated disruption").slice(0, 200),
     source: "simulated",
+    confidence: "low",
     updatedAt: new Date().toISOString()
   };
 

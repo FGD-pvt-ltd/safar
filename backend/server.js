@@ -11,7 +11,10 @@ const {
   clearAllDisruptions
 } = require("./services/disruptionStore");
 
-const { findFastestJourney } = require("./services/journeyService");
+const {
+  findFastestJourney,
+  findAlternativeJourneys
+} = require("./services/journeyService");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,6 +26,14 @@ app.get("/api/health", (req, res) => {
   res.json({
     success: true,
     message: "SAFAR backend is running.",
+    features: [
+      "alternative routes",
+      "budget filtering",
+      "route preferences",
+      "simulated disruption recovery",
+      "recommendation explanations"
+    ],
+    dataConfidence: "low",
     timestamp: new Date().toISOString()
   });
 });
@@ -30,21 +41,27 @@ app.get("/api/health", (req, res) => {
 app.get("/api/stops", (req, res) => {
   const query = String(req.query.search || "").trim().toLowerCase();
 
-  const result = query
+  const filtered = query
     ? stops.filter(stop =>
         stop.name.toLowerCase().includes(query) ||
         stop.id.toLowerCase().includes(query)
       )
     : stops;
 
-  res.json({ success: true, count: result.length, stops: result });
+  res.json({
+    success: true,
+    count: filtered.length,
+    stops: filtered
+  });
 });
 
 app.get("/api/connections", (req, res) => {
   res.json({
     success: true,
     count: connections.length,
-    connections
+    connections,
+    dataConfidence: "low",
+    dataNotice: "Connection durations and fares are illustrative mock data."
   });
 });
 
@@ -79,9 +96,12 @@ app.post("/api/disruptions", (req, res) => {
       reason
     });
 
-    res.status(201).json({ success: true, disruption });
+    return res.status(201).json({
+      success: true,
+      disruption
+    });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message
     });
@@ -109,10 +129,19 @@ app.delete("/api/disruptions", (req, res) => {
   });
 });
 
-app.post("/api/journeys/search", (req, res) => {
-  const { originId, destinationId } = req.body || {};
+function readJourneyInput(body = {}) {
+  return {
+    originId: body.originId || body.originStopId,
+    destinationId: body.destinationId || body.destinationStopId,
+    preference: body.preference || "balanced",
+    maxFare: body.maxFare ?? body.budget
+  };
+}
 
-  if (!originId || !destinationId) {
+app.post("/api/journeys/search", (req, res) => {
+  const input = readJourneyInput(req.body);
+
+  if (!input.originId || !input.destinationId) {
     return res.status(400).json({
       success: false,
       message: "originId and destinationId are required."
@@ -120,15 +149,49 @@ app.post("/api/journeys/search", (req, res) => {
   }
 
   try {
-    const journey = findFastestJourney(
-      originId,
-      destinationId,
-      listDisruptions()
+    const result = findAlternativeJourneys(
+      input.originId,
+      input.destinationId,
+      listDisruptions(),
+      {
+        preference: input.preference,
+        maxFare: input.maxFare
+      }
     );
 
-    res.json({ success: true, journey });
+    return res.json(result);
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/journeys/alternatives", (req, res) => {
+  const input = readJourneyInput(req.body);
+
+  if (!input.originId || !input.destinationId) {
+    return res.status(400).json({
+      success: false,
+      message: "originId and destinationId are required."
+    });
+  }
+
+  try {
+    const result = findAlternativeJourneys(
+      input.originId,
+      input.destinationId,
+      listDisruptions(),
+      {
+        preference: input.preference,
+        maxFare: input.maxFare
+      }
+    );
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(400).json({
       success: false,
       message: error.message
     });
@@ -136,9 +199,9 @@ app.post("/api/journeys/search", (req, res) => {
 });
 
 app.post("/api/recovery/recommendations", (req, res) => {
-  const { originId, destinationId } = req.body || {};
+  const input = readJourneyInput(req.body);
 
-  if (!originId || !destinationId) {
+  if (!input.originId || !input.destinationId) {
     return res.status(400).json({
       success: false,
       message: "originId and destinationId are required."
@@ -146,43 +209,51 @@ app.post("/api/recovery/recommendations", (req, res) => {
   }
 
   try {
-    const baseline = findFastestJourney(originId, destinationId, []);
-    const current = findFastestJourney(
-      originId,
-      destinationId,
-      listDisruptions()
+    const disruptions = listDisruptions();
+
+    const baseline = findAlternativeJourneys(
+      input.originId,
+      input.destinationId,
+      [],
+      {
+        preference: input.preference,
+        maxFare: input.maxFare
+      }
     );
 
-    const timeSaved =
-      baseline.reachable !== false && current.reachable !== false
-        ? baseline.durationMinutes - current.durationMinutes
-        : null;
+    const recommendation = findAlternativeJourneys(
+      input.originId,
+      input.destinationId,
+      disruptions,
+      {
+        preference: input.preference,
+        maxFare: input.maxFare
+      }
+    );
 
-    res.json({
+    return res.json({
       success: true,
       baseline,
-      recommendation: current,
-      comparison: {
-        baselineMinutes: baseline.durationMinutes ?? null,
-        recommendedMinutes: current.durationMinutes ?? null,
-        timeDifferenceMinutes:
-          baseline.reachable !== false && current.reachable !== false
-            ? current.durationMinutes - baseline.durationMinutes
-            : null,
-        message:
-          current.reachable === false
-            ? "No route is available in the current sample network."
-            : listDisruptions().length
-              ? "Route recalculated using current simulated disruptions."
-              : "No active disruptions. Showing the fastest sample route."
-      }
+      recommendation,
+      activeDisruptions: disruptions.length,
+      dataNotice:
+        "All routes, fares and durations are simulated development data."
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: error.message
     });
   }
+});
+
+app.use((err, req, res, next) => {
+  console.error("SAFAR server error:", err.message);
+
+  res.status(500).json({
+    success: false,
+    message: "An unexpected server error occurred."
+  });
 });
 
 app.get("/", (req, res) => {
