@@ -1,0 +1,544 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAFAR | Journey Resilience</title>
+  <style>
+    :root {
+      font-family: Inter, system-ui, Arial, sans-serif;
+      color: #202b36;
+      background: #f4f6f8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #173c35;
+      color: white;
+      padding: 25px max(20px, calc((100% - 1120px) / 2));
+    }
+
+    header h1 {
+      margin: 0 0 5px;
+      letter-spacing: 2px;
+    }
+
+    header p {
+      margin: 0;
+      color: #d5e8e1;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 25px auto;
+      padding: 0 16px 35px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #e1e6e9;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 4px 15px #152c3510;
+      min-width: 0;
+    }
+
+    .wide { grid-column: 1 / -1; }
+
+    h2 {
+      margin-top: 0;
+      font-size: 19px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 14px 0 6px;
+      font-size: 14px;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 11px;
+      border-radius: 8px;
+      border: 1px solid #ccd5d9;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      background: #176b54;
+      color: white;
+      border: none;
+      font-weight: 650;
+      margin-top: 12px;
+    }
+
+    button:hover { background: #10513f; }
+
+    button.secondary {
+      background: #e8efed;
+      color: #173c35;
+      border: 1px solid #c9d9d4;
+    }
+
+    button.danger {
+      background: #a93232;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .row > * { flex: 1; }
+
+    .muted {
+      color: #63717a;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .status {
+      background: #eef5f2;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 15px;
+    }
+
+    .result {
+      margin-top: 16px;
+      overflow-wrap: anywhere;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .metric {
+      background: #f0f5f3;
+      border-radius: 10px;
+      padding: 13px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      margin-top: 5px;
+    }
+
+    .segment {
+      border-left: 3px solid #176b54;
+      padding: 8px 12px;
+      margin: 12px 0;
+      background: #fafcfb;
+    }
+
+    .tag {
+      display: inline-block;
+      background: #e4efeb;
+      color: #17513f;
+      padding: 3px 8px;
+      border-radius: 15px;
+      font-size: 12px;
+      text-transform: capitalize;
+    }
+
+    .list-item {
+      border-bottom: 1px solid #e7ebed;
+      padding: 10px 0;
+      overflow-wrap: anywhere;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #172b2a;
+      color: #e0f3eb;
+      padding: 15px;
+      border-radius: 8px;
+      max-height: 420px;
+      overflow: auto;
+      font-size: 12px;
+    }
+
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; }
+      .wide { grid-column: auto; }
+      .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SAFAR</h1>
+    <p>Journey Resilience Engine · Chennai transit prototype</p>
+  </header>
+
+  <main>
+    <div class="status" id="health">Connecting to SAFAR backend...</div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Plan your journey</h2>
+
+        <label for="origin">Starting point</label>
+        <select id="origin"></select>
+
+        <label for="destination">Destination</label>
+        <select id="destination"></select>
+
+        <button id="searchButton">Find Fastest Available Route</button>
+        <button id="recoveryButton" class="secondary">Compare Recovery Recommendation</button>
+
+        <div id="journeyResult" class="result"></div>
+      </section>
+
+      <section class="card">
+        <h2>Simulate a disruption</h2>
+
+        <label for="connection">Connection</label>
+        <select id="connection"></select>
+
+        <label for="disruptionStatus">Disruption type</label>
+        <select id="disruptionStatus">
+          <option value="delayed">Delayed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+
+        <label for="delayMinutes">Delay in minutes</label>
+        <input id="delayMinutes" type="number" min="1" max="240" value="15" />
+
+        <label for="reason">Reason</label>
+        <input id="reason" value="Simulated service disruption" />
+
+        <button id="simulateButton">Apply Disruption</button>
+        <button id="clearAllButton" class="danger">Clear All Disruptions</button>
+
+        <p class="muted">
+          These are simulations for testing the route-recovery engine.
+          They are not official live service alerts.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Active disruptions</h2>
+        <div id="disruptionList">Loading...</div>
+        <button class="secondary" id="refreshButton">Refresh Data</button>
+      </section>
+
+      <section class="card">
+        <h2>Network overview</h2>
+        <div id="networkSummary">Loading network...</div>
+      </section>
+
+      <section class="card wide">
+        <h2>API response / debugging</h2>
+        <pre id="debug">Ready.</pre>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    let stops = [];
+    let connections = [];
+
+    async function api(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || `Request failed: ${response.status}`);
+      }
+
+      return data;
+    }
+
+    function showDebug(data) {
+      $("debug").textContent = JSON.stringify(data, null, 2);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      })[char]);
+    }
+
+    function populateSelect(selectId, items, getValue, getLabel) {
+      const select = $(selectId);
+      const previousValue = select.value;
+
+      select.innerHTML = items.map(item =>
+        `<option value="${escapeHtml(getValue(item))}">${escapeHtml(getLabel(item))}</option>`
+      ).join("");
+
+      if (items.some(item => getValue(item) === previousValue)) {
+        select.value = previousValue;
+      }
+    }
+
+    async function loadHealth() {
+      try {
+        const data = await api("/api/health");
+        $("health").textContent = "✓ " + data.message;
+      } catch (error) {
+        $("health").textContent =
+          "Backend unavailable. Start the server and refresh this page.";
+      }
+    }
+
+    async function loadNetwork() {
+      const [stopData, connectionData] = await Promise.all([
+        api("/api/stops"),
+        api("/api/connections")
+      ]);
+
+      stops = stopData.stops;
+      connections = connectionData.connections;
+
+      populateSelect("origin", stops, stop => stop.id, stop => stop.name);
+      populateSelect("destination", stops, stop => stop.id, stop => stop.name);
+
+      populateSelect(
+        "connection",
+        connections,
+        connection => connection.id,
+        connection => {
+          const from = stops.find(stop => stop.id === connection.from)?.name || connection.from;
+          const to = stops.find(stop => stop.id === connection.to)?.name || connection.to;
+          return `${connection.id}: ${from} ↔ ${to} (${connection.mode})`;
+        }
+      );
+
+      $("networkSummary").innerHTML = `
+        <div class="metrics">
+          <div class="metric">Stops<strong>${stops.length}</strong></div>
+          <div class="metric">Connections<strong>${connections.length}</strong></div>
+          <div class="metric">Modes<strong>${new Set(connections.map(c => c.mode)).size}</strong></div>
+        </div>
+        <p class="muted">Modes: ${[...new Set(connections.map(c => c.mode))].join(", ")}</p>
+        <p class="muted">Sample data only. Times and fares require real-world verification.</p>
+      `;
+    }
+
+    function renderJourney(journey) {
+      if (journey.reachable === false) {
+        return `<p>${escapeHtml(journey.message || "No route found.")}</p>`;
+      }
+
+      const segments = journey.segments || [];
+
+      return `
+        <div class="metrics">
+          <div class="metric">Estimated time<strong>${journey.durationMinutes} min</strong></div>
+          <div class="metric">Sample fare<strong>₹${journey.fare}</strong></div>
+          <div class="metric">Mode changes<strong>${journey.transfers}</strong></div>
+        </div>
+        <p><strong>${escapeHtml(journey.origin.name)}</strong> → <strong>${escapeHtml(journey.destination.name)}</strong></p>
+        ${segments.length ? segments.map(segment => `
+          <div class="segment">
+            <span class="tag">${escapeHtml(segment.mode)}</span>
+            <strong>${escapeHtml(segment.fromName)} → ${escapeHtml(segment.toName)}</strong>
+            <div class="muted">
+              ${segment.durationMinutes} min · Sample fare ₹${segment.fare}
+              ${segment.delayMinutes ? ` · Includes ${segment.delayMinutes} min simulated delay` : ""}
+            </div>
+          </div>
+        `).join("") : "<p>No travel required.</p>"}
+        <p class="muted">${escapeHtml(journey.warning || "")}</p>
+      `;
+    }
+
+    async function searchJourney() {
+      try {
+        const data = await api("/api/journeys/search", {
+          method: "POST",
+          body: JSON.stringify({
+            originId: $("origin").value,
+            destinationId: $("destination").value
+          })
+        });
+
+        $("journeyResult").innerHTML = renderJourney(data.journey);
+        showDebug(data);
+      } catch (error) {
+        $("journeyResult").textContent = error.message;
+        showDebug({ error: error.message });
+      }
+    }
+
+    async function compareRecovery() {
+      try {
+        const data = await api("/api/recovery/recommendations", {
+          method: "POST",
+          body: JSON.stringify({
+            originId: $("origin").value,
+            destinationId: $("destination").value
+          })
+        });
+
+        $("journeyResult").innerHTML = `
+          <h3>Recommended route</h3>
+          ${renderJourney(data.recommendation)}
+          <h3>Comparison</h3>
+          <p>${escapeHtml(data.comparison.message)}</p>
+          <p>Time difference: ${
+            data.comparison.timeDifferenceMinutes === null
+              ? "Not available"
+              : `${data.comparison.timeDifferenceMinutes} minutes`
+          }</p>
+          <details>
+            <summary>View baseline route</summary>
+            ${renderJourney(data.baseline)}
+          </details>
+        `;
+
+        showDebug(data);
+      } catch (error) {
+        $("journeyResult").textContent = error.message;
+        showDebug({ error: error.message });
+      }
+    }
+
+    async function loadDisruptions() {
+      try {
+        const data = await api("/api/disruptions");
+        const items = data.disruptions || [];
+
+        if (!items.length) {
+          $("disruptionList").innerHTML = "<p>No active simulated disruptions.</p>";
+          return;
+        }
+
+        $("disruptionList").innerHTML = items.map(item => {
+          const connection = connections.find(c => c.id === item.connectionId);
+          const from = stops.find(s => s.id === connection?.from)?.name || connection?.from || "";
+          const to = stops.find(s => s.id === connection?.to)?.name || connection?.to || "";
+
+          return `
+            <div class="list-item">
+              <strong>${escapeHtml(item.connectionId)}: ${escapeHtml(from)} ↔ ${escapeHtml(to)}</strong>
+              <p>${escapeHtml(item.status)}${item.status === "delayed" ? ` by ${item.delayMinutes} min` : ""}</p>
+              <p class="muted">${escapeHtml(item.reason)}</p>
+              <button class="danger" data-clear="${escapeHtml(item.connectionId)}">Clear this disruption</button>
+            </div>
+          `;
+        }).join("");
+
+        $("disruptionList").querySelectorAll("[data-clear]").forEach(button => {
+          button.addEventListener("click", async () => {
+            try {
+              const result = await api(
+                `/api/disruptions/${encodeURIComponent(button.dataset.clear)}`,
+                { method: "DELETE" }
+              );
+              showDebug(result);
+              await loadDisruptions();
+            } catch (error) {
+              showDebug({ error: error.message });
+            }
+          });
+        });
+      } catch (error) {
+        $("disruptionList").textContent = error.message;
+      }
+    }
+
+    async function applyDisruption() {
+      try {
+        const payload = {
+          connectionId: $("connection").value,
+          status: $("disruptionStatus").value,
+          delayMinutes: Number($("delayMinutes").value),
+          reason: $("reason").value
+        };
+
+        const data = await api("/api/disruptions", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+
+        showDebug(data);
+        await loadDisruptions();
+        await searchJourney();
+      } catch (error) {
+        showDebug({ error: error.message });
+        alert(error.message);
+      }
+    }
+
+    async function clearAllDisruptions() {
+      try {
+        const data = await api("/api/disruptions", { method: "DELETE" });
+        showDebug(data);
+        await loadDisruptions();
+        await searchJourney();
+      } catch (error) {
+        showDebug({ error: error.message });
+      }
+    }
+
+    $("searchButton").addEventListener("click", searchJourney);
+    $("recoveryButton").addEventListener("click", compareRecovery);
+    $("simulateButton").addEventListener("click", applyDisruption);
+    $("clearAllButton").addEventListener("click", clearAllDisruptions);
+
+    $("refreshButton").addEventListener("click", async () => {
+      try {
+        await loadNetwork();
+        await loadDisruptions();
+        await loadHealth();
+      } catch (error) {
+        showDebug({ error: error.message });
+      }
+    });
+
+    $("disruptionStatus").addEventListener("change", () => {
+      $("delayMinutes").disabled = $("disruptionStatus").value === "cancelled";
+    });
+
+    async function init() {
+      try {
+        await loadHealth();
+        await loadNetwork();
+        await loadDisruptions();
+      } catch (error) {
+        showDebug({ error: error.message });
+        $("health").textContent = "Unable to load SAFAR data: " + error.message;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

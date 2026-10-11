@@ -1,123 +1,145 @@
 
 const { stops, connections } = require("../data/network");
 
-function findFastestJourney(originId, destinationId) {
-  const stopIds = new Set(stops.map((stop) => stop.id));
+function findFastestJourney(originId, destinationId, disruptionList = []) {
+  const origin = stops.find(stop => stop.id === originId);
+  const destination = stops.find(stop => stop.id === destinationId);
 
-  if (!stopIds.has(originId) || !stopIds.has(destinationId)) {
-    const error = new Error("Unknown origin or destination stop");
-    error.statusCode = 400;
-    throw error;
+  if (!origin || !destination) {
+    throw new Error("Invalid origin or destination stop.");
   }
 
   if (originId === destinationId) {
     return {
-      origin: stops.find((s) => s.id === originId),
-      destination: stops.find((s) => s.id === destinationId),
-      totalDurationMinutes: 0,
-      estimatedFare: 0,
+      origin,
+      destination,
+      durationMinutes: 0,
+      fare: 0,
       transfers: 0,
-      segments: []
+      segments: [],
+      warning: "Same origin and destination."
     };
   }
 
-  // Build the graph from the transport connections.
-  const graph = new Map(stops.map((stop) => [stop.id, []]));
+  const disruptionMap = new Map(
+    disruptionList.map(item => [item.connectionId, item])
+  );
+
+  const graph = new Map(stops.map(stop => [stop.id, []]));
 
   for (const connection of connections) {
-    if (
-      !graph.has(connection.from) ||
-      !graph.has(connection.to) ||
-      !Number.isFinite(connection.durationMinutes) ||
-      connection.durationMinutes <= 0
-    ) {
+    const disruption = disruptionMap.get(connection.id);
+
+    if (disruption?.status === "cancelled") {
       continue;
     }
 
-    graph.get(connection.from).push(connection);
+    const delay =
+      disruption?.status === "delayed"
+        ? Number(disruption.delayMinutes) || 0
+        : 0;
+
+    const edge = {
+      ...connection,
+      effectiveDuration: connection.durationMinutes + delay
+    };
+
+    graph.get(connection.from).push({
+      ...edge,
+      nextStop: connection.to
+    });
 
     if (connection.bidirectional) {
       graph.get(connection.to).push({
-        ...connection,
+        ...edge,
         from: connection.to,
-        to: connection.from
+        to: connection.from,
+        nextStop: connection.from
       });
     }
   }
 
-  // Dijkstra's algorithm: shortest travel time.
-  const distances = new Map(
-    stops.map((stop) => [stop.id, Infinity])
-  );
+  const distances = new Map(stops.map(stop => [stop.id, Infinity]));
   const previous = new Map();
-  const unvisited = new Set(stopIds);
+  const visited = new Set();
 
   distances.set(originId, 0);
 
-  while (unvisited.size > 0) {
-    let current = null;
+  while (visited.size < stops.length) {
+    let currentId = null;
     let bestDistance = Infinity;
 
-    for (const stopId of unvisited) {
-      const distance = distances.get(stopId);
+    for (const stop of stops) {
+      const distance = distances.get(stop.id);
 
-      if (distance < bestDistance) {
+      if (!visited.has(stop.id) && distance < bestDistance) {
         bestDistance = distance;
-        current = stopId;
+        currentId = stop.id;
       }
     }
 
-    if (current === null) break;
-    if (current === destinationId) break;
+    if (currentId === null || bestDistance === Infinity) {
+      break;
+    }
 
-    unvisited.delete(current);
+    if (currentId === destinationId) {
+      break;
+    }
 
-    for (const edge of graph.get(current)) {
-      if (!unvisited.has(edge.to)) continue;
+    visited.add(currentId);
 
-      const candidate =
-        distances.get(current) + edge.durationMinutes;
+    for (const edge of graph.get(currentId)) {
+      if (visited.has(edge.nextStop)) continue;
 
-      if (candidate < distances.get(edge.to)) {
-        distances.set(edge.to, candidate);
-        previous.set(edge.to, {
-          stopId: current,
-          connection: edge
+      const newDistance =
+        distances.get(currentId) + edge.effectiveDuration;
+
+      if (newDistance < distances.get(edge.nextStop)) {
+        distances.set(edge.nextStop, newDistance);
+        previous.set(edge.nextStop, {
+          stopId: currentId,
+          edge
         });
       }
     }
   }
 
-  if (!Number.isFinite(distances.get(destinationId))) {
-    return null;
+  if (distances.get(destinationId) === Infinity) {
+    return {
+      origin,
+      destination,
+      reachable: false,
+      message: "No available route was found.",
+      warning: "The sample network may not contain a valid alternative."
+    };
   }
 
-  // Reconstruct the journey.
   const segments = [];
-  let current = destinationId;
+  let cursor = destinationId;
 
-  while (current !== originId) {
-    const step = previous.get(current);
+  while (cursor !== originId) {
+    const step = previous.get(cursor);
 
-    if (!step) return null;
+    if (!step) {
+      throw new Error("Could not reconstruct the journey.");
+    }
 
-    segments.unshift(step.connection);
-    current = step.stopId;
+    segments.unshift({
+      connectionId: step.edge.id,
+      from: step.edge.from,
+      to: step.edge.to,
+      fromName: stops.find(s => s.id === step.edge.from).name,
+      toName: stops.find(s => s.id === step.edge.to).name,
+      mode: step.edge.mode,
+      durationMinutes: step.edge.effectiveDuration,
+      baseDurationMinutes: step.edge.durationMinutes,
+      delayMinutes: step.edge.effectiveDuration - step.edge.durationMinutes,
+      fare: step.edge.fare
+    });
+
+    cursor = step.stopId;
   }
 
-  const usedStops = [originId, ...segments.map((s) => s.to)];
-  const stopById = new Map(stops.map((stop) => [stop.id, stop]));
-
-  const journeySegments = segments.map((segment) => ({
-    from: stopById.get(segment.from),
-    to: stopById.get(segment.to),
-    mode: segment.mode,
-    service: segment.service,
-    durationMinutes: segment.durationMinutes,
-    estimatedFare: segment.fare
-  }));
-
-  // Count changes between transport modes as transfers.
   let transfers = 0;
 
   for (let i = 1; i < segments.length; i++) {
@@ -127,18 +149,15 @@ function findFastestJourney(originId, destinationId) {
   }
 
   return {
-    origin: stopById.get(originId),
-    destination: stopById.get(destinationId),
-    totalDurationMinutes: distances.get(destinationId),
-    estimatedFare: segments.reduce(
-      (total, segment) => total + (segment.fare ?? 0),
-      0
-    ),
+    reachable: true,
+    origin,
+    destination,
+    durationMinutes: distances.get(destinationId),
+    fare: segments.reduce((sum, segment) => sum + segment.fare, 0),
     transfers,
-    stopsVisited: usedStops.map((id) => stopById.get(id)),
-    segments: journeySegments,
-    dataSource: "mock",
-    warning: "Sample data only. Not suitable for real-time travel decisions."
+    segments,
+    warning:
+      "Uses illustrative sample data, not live schedules or verified fares."
   };
 }
 

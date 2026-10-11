@@ -1,76 +1,194 @@
 
 const express = require("express");
+const path = require("path");
 
-const app = express();
-const PORT = 5000;
+const { stops, connections } = require("./data/network");
 
-// Allow the server to read JSON request bodies
-app.use(express.json());
-
-// First SAFAR API endpoint
-app.get("/", (req, res) => {
-    res.json({
-        project: "SAFAR",
-        message: "SAFAR backend is running!",
-        status: "success"
-    });
-});
-
-// Health-check endpoint
-app.get("/api/health", (req, res) => {
-    res.json({
-        status: "healthy",
-        service: "SAFAR backend"
-    });
-});
-
+const {
+  listDisruptions,
+  setDisruption,
+  clearDisruption,
+  clearAllDisruptions
+} = require("./services/disruptionStore");
 
 const { findFastestJourney } = require("./services/journeyService");
 
-app.post("/api/journeys/search", (req, res) => {
-  try {
-    const { originStopId, destinationStopId } = req.body || {};
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-    if (
-      typeof originStopId !== "string" ||
-      typeof destinationStopId !== "string" ||
-      !originStopId.trim() ||
-      !destinationStopId.trim()
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "originStopId and destinationStopId are required."
-      });
-    }
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
-    const journey = findFastestJourney(
-      originStopId.trim().toUpperCase(),
-      destinationStopId.trim().toUpperCase()
-    );
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "SAFAR backend is running.",
+    timestamp: new Date().toISOString()
+  });
+});
 
-    if (!journey) {
-      return res.status(404).json({
-        success: false,
-        message: "No journey found between these stops."
-      });
-    }
+app.get("/api/stops", (req, res) => {
+  const query = String(req.query.search || "").trim().toLowerCase();
 
-    return res.status(200).json({
-      success: true,
-      data: journey
-    });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
+  const result = query
+    ? stops.filter(stop =>
+        stop.name.toLowerCase().includes(query) ||
+        stop.id.toLowerCase().includes(query)
+      )
+    : stops;
+
+  res.json({ success: true, count: result.length, stops: result });
+});
+
+app.get("/api/connections", (req, res) => {
+  res.json({
+    success: true,
+    count: connections.length,
+    connections
+  });
+});
+
+app.get("/api/disruptions", (req, res) => {
+  res.json({
+    success: true,
+    disruptions: listDisruptions()
+  });
+});
+
+app.post("/api/disruptions", (req, res) => {
+  const { connectionId, status, delayMinutes, reason } = req.body || {};
+
+  if (!connectionId) {
+    return res.status(400).json({
       success: false,
-      message:
-        error.statusCode === 400
-          ? error.message
-          : "Unable to calculate journey."
+      message: "connectionId is required."
+    });
+  }
+
+  if (!connections.some(connection => connection.id === connectionId)) {
+    return res.status(404).json({
+      success: false,
+      message: "Connection not found."
+    });
+  }
+
+  try {
+    const disruption = setDisruption(connectionId, {
+      status,
+      delayMinutes,
+      reason
+    });
+
+    res.status(201).json({ success: true, disruption });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
     });
   }
 });
 
+app.delete("/api/disruptions/:connectionId", (req, res) => {
+  const removed = clearDisruption(req.params.connectionId);
+
+  res.json({
+    success: true,
+    removed,
+    message: removed
+      ? "Disruption cleared."
+      : "No disruption existed for that connection."
+  });
+});
+
+app.delete("/api/disruptions", (req, res) => {
+  clearAllDisruptions();
+
+  res.json({
+    success: true,
+    message: "All simulated disruptions cleared."
+  });
+});
+
+app.post("/api/journeys/search", (req, res) => {
+  const { originId, destinationId } = req.body || {};
+
+  if (!originId || !destinationId) {
+    return res.status(400).json({
+      success: false,
+      message: "originId and destinationId are required."
+    });
+  }
+
+  try {
+    const journey = findFastestJourney(
+      originId,
+      destinationId,
+      listDisruptions()
+    );
+
+    res.json({ success: true, journey });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/recovery/recommendations", (req, res) => {
+  const { originId, destinationId } = req.body || {};
+
+  if (!originId || !destinationId) {
+    return res.status(400).json({
+      success: false,
+      message: "originId and destinationId are required."
+    });
+  }
+
+  try {
+    const baseline = findFastestJourney(originId, destinationId, []);
+    const current = findFastestJourney(
+      originId,
+      destinationId,
+      listDisruptions()
+    );
+
+    const timeSaved =
+      baseline.reachable !== false && current.reachable !== false
+        ? baseline.durationMinutes - current.durationMinutes
+        : null;
+
+    res.json({
+      success: true,
+      baseline,
+      recommendation: current,
+      comparison: {
+        baselineMinutes: baseline.durationMinutes ?? null,
+        recommendedMinutes: current.durationMinutes ?? null,
+        timeDifferenceMinutes:
+          baseline.reachable !== false && current.reachable !== false
+            ? current.durationMinutes - baseline.durationMinutes
+            : null,
+        message:
+          current.reachable === false
+            ? "No route is available in the current sample network."
+            : listDisruptions().length
+              ? "Route recalculated using current simulated disruptions."
+              : "No active disruptions. Showing the fastest sample route."
+      }
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 app.listen(PORT, () => {
-    console.log(`SAFAR backend running at http://localhost:${PORT}`);
+  console.log(`SAFAR server running at http://localhost:${PORT}`);
 });
