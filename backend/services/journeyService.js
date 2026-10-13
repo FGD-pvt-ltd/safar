@@ -10,6 +10,13 @@ const WEIGHTS = {
   balanced: { time: 0.45, fare: 0.35, transfers: 0.20 }
 };
 
+const VALID_PREFERENCES = [
+  "fastest",
+  "cheapest",
+  "balanced",
+  "fewest_transfers"
+];
+
 function findAlternativeJourneys(
   originId,
   destinationId,
@@ -25,8 +32,10 @@ function findAlternativeJourneys(
 
   const preference = options.preference || "balanced";
 
-  if (!WEIGHTS[preference]) {
-    throw new Error("Preference must be fastest, cheapest, or balanced.");
+  if (!VALID_PREFERENCES.includes(preference)) {
+    throw new Error(
+      "Preference must be fastest, cheapest, balanced, or fewest_transfers."
+    );
   }
 
   let maxFare = null;
@@ -52,6 +61,8 @@ function findAlternativeJourneys(
       fare: 0,
       transfers: 0,
       segments: [],
+      disruptionCount: 0,
+      connectionIds: [],
       score: 100,
       preference,
       explanation: "You are already at your destination.",
@@ -67,7 +78,10 @@ function findAlternativeJourneys(
       maxFare,
       budgetExceeded: false,
       routes: [journey],
-      message: "Origin and destination are the same."
+      candidatesEvaluated: 1,
+      searchLimitReached: false,
+      message: "Origin and destination are the same.",
+      dataNotice: DATA_NOTICE
     };
   }
 
@@ -80,7 +94,9 @@ function findAlternativeJourneys(
   for (const connection of connections) {
     const disruption = disruptionMap.get(connection.id);
 
-    if (disruption?.status === "cancelled") continue;
+    if (disruption?.status === "cancelled") {
+      continue;
+    }
 
     const delay =
       disruption?.status === "delayed"
@@ -109,8 +125,8 @@ function findAlternativeJourneys(
     }
   }
 
-  // Best-first search over simple paths. A path cannot revisit a stop.
-  // The expansion limit prevents excessive work on larger networks.
+  // Best-first search over simple paths.
+  // A path cannot revisit a stop.
   const queue = [{
     currentId: originId,
     visited: new Set([originId]),
@@ -121,6 +137,7 @@ function findAlternativeJourneys(
 
   const candidates = [];
   let expanded = 0;
+
   const MAX_EXPANSIONS = 12000;
   const MAX_CANDIDATES = 1000;
 
@@ -130,40 +147,54 @@ function findAlternativeJourneys(
     candidates.length < MAX_CANDIDATES
   ) {
     queue.sort((a, b) => a.durationMinutes - b.durationMinutes);
-    const path = queue.shift();
+
+    const currentPath = queue.shift();
     expanded++;
 
-    if (path.currentId === destinationId) {
-      const modes = path.segments.map(segment => segment.mode);
+    if (currentPath.currentId === destinationId) {
+      const modes = currentPath.segments.map(segment => segment.mode);
       let transfers = 0;
 
       for (let i = 1; i < modes.length; i++) {
-        if (modes[i] !== modes[i - 1]) transfers++;
+        if (modes[i] !== modes[i - 1]) {
+          transfers++;
+        }
       }
 
       candidates.push({
         reachable: true,
         origin,
         destination,
-        durationMinutes: path.durationMinutes,
-        fare: path.fare,
+        durationMinutes: currentPath.durationMinutes,
+        fare: currentPath.fare,
         transfers,
-        segments: path.segments,
-        disruptionCount: path.segments.filter(s => s.disrupted).length,
-        connectionIds: path.segments.map(s => s.connectionId)
+        segments: currentPath.segments,
+        disruptionCount: currentPath.segments.filter(
+          segment => segment.disrupted
+        ).length,
+        connectionIds: currentPath.segments.map(
+          segment => segment.connectionId
+        ),
+        dataConfidence: "low",
+        dataNotice: DATA_NOTICE
       });
 
       continue;
     }
 
-    for (const edge of graph.get(path.currentId)) {
-      if (path.visited.has(edge.nextStop)) continue;
+    for (const edge of graph.get(currentPath.currentId) || []) {
+      if (currentPath.visited.has(edge.nextStop)) {
+        continue;
+      }
 
-      const nextVisited = new Set(path.visited);
+      const nextVisited = new Set(currentPath.visited);
       nextVisited.add(edge.nextStop);
 
-      const fromName = stops.find(s => s.id === edge.from)?.name || edge.from;
-      const toName = stops.find(s => s.id === edge.to)?.name || edge.to;
+      const fromName =
+        stops.find(stop => stop.id === edge.from)?.name || edge.from;
+
+      const toName =
+        stops.find(stop => stop.id === edge.to)?.name || edge.to;
 
       const segment = {
         connectionId: edge.id,
@@ -182,14 +213,26 @@ function findAlternativeJourneys(
       queue.push({
         currentId: edge.nextStop,
         visited: nextVisited,
-        segments: [...path.segments, segment],
-        durationMinutes: path.durationMinutes + edge.effectiveDuration,
-        fare: path.fare + edge.fare
+        segments: [...currentPath.segments, segment],
+        durationMinutes:
+          currentPath.durationMinutes + edge.effectiveDuration,
+        fare: currentPath.fare + edge.fare
       });
     }
   }
 
-  if (!candidates.length) {
+  const unique = new Map();
+
+  for (const route of candidates) {
+    const key = route.connectionIds.join(">");
+    if (!unique.has(key)) {
+      unique.set(key, route);
+    }
+  }
+
+  const allRoutes = Array.from(unique.values());
+
+  if (allRoutes.length === 0) {
     return {
       success: true,
       origin,
@@ -198,61 +241,100 @@ function findAlternativeJourneys(
       maxFare,
       budgetExceeded: false,
       routes: [],
+      candidatesEvaluated: 0,
+      searchLimitReached: expanded >= MAX_EXPANSIONS,
       message: "No available route was found in the current network.",
       dataNotice: DATA_NOTICE
     };
   }
 
-  const unique = new Map();
-
-  for (const route of candidates) {
-    const key = route.connectionIds.join(">");
-    if (!unique.has(key)) unique.set(key, route);
+  // Candidate-generation mode for external ranking services.
+  // Do not apply fare filtering or local top-three ranking here.
+  if (options.returnAllCandidates === true) {
+    return {
+      success: true,
+      origin,
+      destination,
+      preference,
+      maxFare,
+      budgetExceeded: false,
+      routes: allRoutes,
+      candidatesEvaluated: allRoutes.length,
+      searchLimitReached: expanded >= MAX_EXPANSIONS,
+      message: `Generated ${allRoutes.length} candidate journeys for external ranking.`,
+      dataNotice: DATA_NOTICE
+    };
   }
 
-  const allRoutes = Array.from(unique.values());
+  // Preserve the existing local behavior for callers that do not
+  // explicitly request the full candidate pool.
   const withinBudget = maxFare === null
     ? allRoutes
     : allRoutes.filter(route => route.fare <= maxFare);
 
-  // If no route meets the budget, return the cheapest alternatives
-  // with an explicit warning rather than pretending they fit.
   const budgetExceeded = withinBudget.length === 0;
+
   const pool = budgetExceeded
-    ? [...allRoutes].sort((a, b) =>
-        a.fare - b.fare ||
-        a.durationMinutes - b.durationMinutes
-      ).slice(0, 3)
+    ? [...allRoutes]
+        .sort((a, b) =>
+          a.fare - b.fare ||
+          a.durationMinutes - b.durationMinutes
+        )
+        .slice(0, 3)
     : withinBudget;
 
-  const weights = WEIGHTS[preference];
+  const minTime = Math.min(...pool.map(route => route.durationMinutes));
+  const maxTime = Math.max(...pool.map(route => route.durationMinutes));
+  const minFare = Math.min(...pool.map(route => route.fare));
+  const maxFareInPool = Math.max(...pool.map(route => route.fare));
+  const minTransfers = Math.min(...pool.map(route => route.transfers));
+  const maxTransfers = Math.max(...pool.map(route => route.transfers));
 
   function rangeScore(value, min, max) {
-    if (max === min) return 100;
+    if (max === min) {
+      return 100;
+    }
+
     return 100 * (1 - (value - min) / (max - min));
   }
 
-  const minTime = Math.min(...pool.map(r => r.durationMinutes));
-  const maxTime = Math.max(...pool.map(r => r.durationMinutes));
-  const minFare = Math.min(...pool.map(r => r.fare));
-  const maxFareInPool = Math.max(...pool.map(r => r.fare));
-  const minTransfers = Math.min(...pool.map(r => r.transfers));
-  const maxTransfers = Math.max(...pool.map(r => r.transfers));
-
   const ranked = pool.map(route => {
-    const timeScore = rangeScore(route.durationMinutes, minTime, maxTime);
+    const timeScore = rangeScore(
+      route.durationMinutes,
+      minTime,
+      maxTime
+    );
+
     const fareScore = rangeScore(route.fare, minFare, maxFareInPool);
+
     const transferScore = rangeScore(
       route.transfers,
       minTransfers,
       maxTransfers
     );
 
-    const score = Math.round(
-      timeScore * weights.time +
-      fareScore * weights.fare +
-      transferScore * weights.transfers
-    );
+    let score;
+
+    if (preference === "fewest_transfers") {
+      // Prefer fewer transfers, then shorter duration, then lower fare.
+      score =
+        route.transfers === minTransfers
+          ? 100
+          : rangeScore(route.transfers, minTransfers, maxTransfers);
+
+      score =
+        score * 0.70 +
+        timeScore * 0.20 +
+        fareScore * 0.10;
+    } else {
+      const weights = WEIGHTS[preference];
+
+      score = Math.round(
+        timeScore * weights.time +
+        fareScore * weights.fare +
+        transferScore * weights.transfers
+      );
+    }
 
     const explanation = [];
 
@@ -270,7 +352,7 @@ function findAlternativeJourneys(
 
     if (route.disruptionCount > 0) {
       explanation.push(
-        "Includes a delayed connection; the delay is included in the estimate"
+        "Includes a disrupted connection; its delay is included in the estimate"
       );
     } else {
       explanation.push("Avoids currently reported simulated disruptions");
@@ -278,7 +360,7 @@ function findAlternativeJourneys(
 
     return {
       ...route,
-      score,
+      score: Math.round(score),
       preference,
       explanation: explanation.join(". ") + ".",
       dataConfidence: "low",
@@ -295,10 +377,9 @@ function findAlternativeJourneys(
   const routes = ranked.slice(0, 3).map((route, index) => ({
     ...route,
     rank: index + 1,
-    recommendation:
-      index === 0
-        ? "Best match for your selected preference"
-        : "Alternative option"
+    recommendation: index === 0
+      ? "Best match for your selected preference"
+      : "Alternative option"
   }));
 
   return {
