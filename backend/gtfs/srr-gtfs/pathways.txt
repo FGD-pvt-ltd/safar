@@ -1,3 +1,5 @@
+
+npm install csv-parse
 pathway_id,from_stop_id,to_stop_id,pathway_mode,is_bidirectional
 pw_f35e321e,PV_1,PV_P_1,1,1
 pw_8fda9d70,PV_1,PV_P_2,1,1

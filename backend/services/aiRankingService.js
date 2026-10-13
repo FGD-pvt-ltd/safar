@@ -1,134 +1,125 @@
 
 const AI_SERVICE_URL =
-  process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
+  process.env.AI_SERVICE_URL || "http://127.0.0.1:8001";
 
-const VALID_PREFERENCES = new Set([
+const VALID_PREFERENCES = [
   "balanced",
   "cheapest",
   "fastest",
-  "fewest_transfers",
-]);
+  "fewest_transfers"
+];
 
-function normalizePreference(preference) {
-  return VALID_PREFERENCES.has(preference)
-    ? preference
-    : "balanced";
+function validatePreference(preference) {
+  if (!VALID_PREFERENCES.includes(preference)) {
+    throw new Error("Invalid journey preference.");
+  }
 }
 
-function passesConstraints(route, maxFare, maxTransfers) {
+function isEligible(route, maxFare, maxTransfers) {
   if (maxFare != null && route.fare > maxFare) return false;
-  if (maxTransfers != null && route.transfers > maxTransfers) {
-    return false;
-  }
+  if (maxTransfers != null && route.transfers > maxTransfers) return false;
   return true;
 }
 
-function localFallbackScore(routes, preference) {
-  const weights = {
-    fastest: { time: 0.7, fare: 0.1, transfers: 0.2 },
-    cheapest: { time: 0.15, fare: 0.7, transfers: 0.15 },
-    balanced: { time: 0.45, fare: 0.35, transfers: 0.2 },
-    fewest_transfers: { time: 0.15, fare: 0.15, transfers: 0.7 },
-  };
+function fallbackRank(routes, preference) {
+  const timeValues = routes.map(r => r.durationMinutes);
+  const fareValues = routes.map(r => r.fare);
+  const transferValues = routes.map(r => r.transfers);
 
-  const w = weights[preference];
-
-  function normalized(value, values) {
+  function score(value, values) {
     const min = Math.min(...values);
     const max = Math.max(...values);
     return max === min ? 100 : 100 * (max - value) / (max - min);
   }
 
-  const times = routes.map(r => r.durationMinutes);
-  const fares = routes.map(r => r.fare);
-  const transfers = routes.map(r => r.transfers);
-
   return routes
-    .map(route => ({
-      ...route,
-      score: Number((
-        w.time * normalized(route.durationMinutes, times) +
-        w.fare * normalized(route.fare, fares) +
-        w.transfers * normalized(route.transfers, transfers)
-      ).toFixed(2)),
-      preference,
-    }))
-    .sort((a, b) => b.score - a.score);
+    .map(route => {
+      let localScore;
+
+      if (preference === "fewest_transfers") {
+        localScore =
+          0.70 * score(route.transfers, transferValues) +
+          0.20 * score(route.durationMinutes, timeValues) +
+          0.10 * score(route.fare, fareValues);
+      } else {
+        const weights = {
+          fastest: { time: 0.70, fare: 0.10, transfers: 0.20 },
+          cheapest: { time: 0.15, fare: 0.70, transfers: 0.15 },
+          balanced: { time: 0.45, fare: 0.35, transfers: 0.20 }
+        }[preference];
+
+        localScore =
+          weights.time * score(route.durationMinutes, timeValues) +
+          weights.fare * score(route.fare, fareValues) +
+          weights.transfers * score(route.transfers, transferValues);
+      }
+
+      return { ...route, score: Math.round(localScore), preference };
+    })
+    .sort((a, b) =>
+      b.score - a.score ||
+      a.durationMinutes - b.durationMinutes ||
+      a.fare - b.fare
+    );
 }
 
 async function rankJourneys({
   journeys,
   preference = "balanced",
   maxFare = null,
-  maxTransfers = null,
-  timeoutMs = 5000,
+  maxTransfers = null
 }) {
-  const selectedPreference = normalizePreference(preference);
+  validatePreference(preference);
 
-  // IDs remain stable within this ranking request.
-  const journeyById = new Map();
-  const routes = journeys.map((journey, index) => {
+  const candidateMap = new Map();
+
+  const candidates = journeys.map((journey, index) => {
     const routeId = `CANDIDATE_${index + 1}`;
-    journeyById.set(routeId, journey);
+
+    candidateMap.set(routeId, journey);
 
     return {
       route_id: routeId,
       travel_time_minutes: journey.durationMinutes,
       fare: journey.fare,
-      transfers: journey.transfers,
+      transfers: journey.transfers
     };
   });
 
-  const fallback = (reason) => {
-    const eligible = routes.filter(route =>
-      passesConstraints(route, maxFare, maxTransfers)
-    );
+  const localEligible = candidates.filter(candidate =>
+    isEligible(candidate, maxFare, maxTransfers)
+  );
 
-    const ranked = localFallbackScore(
-      eligible.map(route => ({
-        ...journeyById.get(route.route_id),
-        candidateId: route.route_id,
+  function fallback(reason) {
+    const routes = fallbackRank(
+      localEligible.map(candidate => ({
+        ...candidateMap.get(candidate.route_id),
+        candidateId: candidate.route_id
       })),
-      selectedPreference
-    ).map((journey, index) => {
-      const { candidateId, ...original } = journey;
-      return {
-        ...original,
-        rank: index + 1,
-        recommendation: index === 0
-          ? "Best match according to local fallback ranking"
-          : undefined,
-      };
-    });
+      preference
+    ).map((route, index) => ({
+      ...route,
+      rank: index + 1,
+      recommendation: index === 0
+        ? "Best match according to Express fallback ranking"
+        : "Alternative option"
+    }));
 
     return {
       success: true,
       rankingProvider: "express-fallback",
       aiRankingUsed: false,
       fallbackReason: reason,
-      preference: selectedPreference,
-      inputCount: journeys.length,
-      eligibleCount: eligible.length,
-      excludedCount: journeys.length - eligible.length,
-      routes: ranked,
-    };
-  };
-
-  if (routes.length === 0) {
-    return {
-      success: true,
-      rankingProvider: "fastapi",
-      aiRankingUsed: true,
-      preference: selectedPreference,
-      inputCount: 0,
-      eligibleCount: 0,
-      excludedCount: 0,
-      routes: [],
+      preference,
+      inputCount: candidates.length,
+      eligibleCount: routes.length,
+      excludedCount: candidates.length - routes.length,
+      routes
     };
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
     const response = await fetch(`${AI_SERVICE_URL}/rank-routes`, {
@@ -136,11 +127,11 @@ async function rankJourneys({
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        routes,
-        preference: selectedPreference,
+        routes: candidates,
+        preference,
         max_fare: maxFare,
-        max_transfers: maxTransfers,
-      }),
+        max_transfers: maxTransfers
+      })
     });
 
     if (!response.ok) {
@@ -149,65 +140,63 @@ async function rankJourneys({
 
     const result = await response.json();
 
-    if (
-      !Array.isArray(result.routes) ||
-      result.input_count !== undefined && result.input_count !== routes.length
-    ) {
-      return fallback("FastAPI response failed validation");
+    if (!Array.isArray(result.routes)) {
+      return fallback("FastAPI returned an invalid routes field");
     }
 
     const seen = new Set();
     const rankedRoutes = [];
 
-    for (const item of result.routes) {
-      const original = journeyById.get(item.route_id);
+    for (const ranked of result.routes) {
+      const original = candidateMap.get(ranked.route_id);
 
-      // Never return an unknown or duplicate route ID.
-      if (!original || seen.has(item.route_id)) continue;
+      if (!original || seen.has(ranked.route_id)) {
+        return fallback("FastAPI returned an unknown or duplicate route ID");
+      }
 
-      // Independently enforce constraints on the returned routes.
-      if (!passesConstraints(
-        routes.find(route => route.route_id === item.route_id),
-        maxFare,
-        maxTransfers
-      )) continue;
+      const candidate = candidates.find(
+        route => route.route_id === ranked.route_id
+      );
 
-      if (!Number.isFinite(Number(item.score))) {
+      if (!isEligible(candidate, maxFare, maxTransfers)) {
+        return fallback("FastAPI returned a route outside the constraints");
+      }
+
+      if (!Number.isFinite(Number(ranked.score))) {
         return fallback("FastAPI returned an invalid score");
       }
 
-      seen.add(item.route_id);
+      seen.add(ranked.route_id);
+
       rankedRoutes.push({
         ...original,
-        score: Number(item.score),
-        preference: item.preference || selectedPreference,
+        candidateId: ranked.route_id,
+        score: Number(ranked.score),
+        preference: ranked.preference || preference,
         rank: rankedRoutes.length + 1,
-        candidateId: item.route_id,
+        recommendation: rankedRoutes.length === 0
+          ? "Best match for your selected preference"
+          : "Alternative option"
       });
-    }
-
-    // Reject incomplete responses instead of silently hiding routes.
-    if (rankedRoutes.length !== result.routes.length) {
-      return fallback("FastAPI returned unknown, duplicate, or ineligible routes");
     }
 
     return {
       success: true,
       rankingProvider: "fastapi",
       aiRankingUsed: true,
-      preference: selectedPreference,
-      inputCount: result.input_count ?? routes.length,
+      preference,
+      inputCount: result.input_count ?? candidates.length,
       eligibleCount: result.eligible_count ?? rankedRoutes.length,
       excludedCount: result.excluded_count ??
-        routes.length - rankedRoutes.length,
-      routes: rankedRoutes,
+        candidates.length - rankedRoutes.length,
+      routes: rankedRoutes
     };
   } catch (error) {
-    const reason = error.name === "AbortError"
-      ? "FastAPI request timed out"
-      : "FastAPI is unavailable";
-
-    return fallback(reason);
+    return fallback(
+      error.name === "AbortError"
+        ? "FastAPI request timed out"
+        : "FastAPI is unavailable"
+    );
   } finally {
     clearTimeout(timeout);
   }
