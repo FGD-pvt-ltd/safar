@@ -49,6 +49,9 @@ function loadDataset(name, directory) {
   const calendarDates = readCsv(
     path.join(directory, "calendar_dates.txt")
   );
+  const fareAttributes = readCsv(path.join(directory, "fare_attributes.txt"));
+  const fareRules = readCsv(path.join(directory, "fare_rules.txt"));
+  const transfers = readCsv(path.join(directory, "transfers.txt"));
 
   const stopIds = new Set(stops.map(stop => stop.stop_id));
   const tripIds = new Set(trips.map(trip => trip.trip_id));
@@ -129,6 +132,21 @@ function loadDataset(name, directory) {
     ])
   );
 
+  // Map zone_id pairs to price for fast fare lookup (e.g., CMRL)
+  const farePriceByRuleKey = new Map();
+  if (fareAttributes.length > 0 && fareRules.length > 0) {
+    const farePrices = new Map(
+      fareAttributes.map(a => [a.fare_id, Number(a.price)])
+    );
+    for (const rule of fareRules) {
+      const origin = (rule.origin_id || "").trim();
+      const dest = (rule.destination_id || "").trim();
+      if (origin && dest && farePrices.has(rule.fare_id)) {
+        farePriceByRuleKey.set(`${origin}>${dest}`, farePrices.get(rule.fare_id));
+      }
+    }
+  }
+
   return {
     name,
     directory,
@@ -140,6 +158,10 @@ function loadDataset(name, directory) {
     stopTimes,
     calendars,
     calendarDates,
+    fareAttributes,
+    fareRules,
+    transfers,
+    farePriceByRuleKey,
     stopsById,
     stopTimesByTrip,
     summary: {
@@ -149,6 +171,9 @@ function loadDataset(name, directory) {
       stopTimes: stopTimes.length,
       calendars: calendars.length,
       calendarDates: calendarDates.length,
+      fareAttributes: fareAttributes.length,
+      fareRules: fareRules.length,
+      transfers: transfers.length,
       tripsWithStopTimes: stopTimesByTrip.size
     }
   };

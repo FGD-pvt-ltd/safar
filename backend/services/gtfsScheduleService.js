@@ -133,15 +133,24 @@ function getScheduledConnections(travelDate) {
         const to = times[i + 1];
 
         const departure = timeToSeconds(from.departure_time);
-        const arrival = timeToSeconds(to.arrival_time);
+        const rawArrival = timeToSeconds(to.arrival_time);
 
         if (
           !from.stop_id ||
           !to.stop_id ||
           departure === null ||
-          arrival === null ||
-          arrival < departure
+          rawArrival === null
         ) {
+          continue;
+        }
+
+        // Handle midnight rollover safely (e.g., departures at 23:55 arriving at 00:15 / 24:15)
+        let arrival = rawArrival;
+        if (arrival < departure && arrival + 86400 >= departure) {
+          arrival = arrival + 86400;
+        }
+
+        if (arrival < departure) {
           continue;
         }
 
@@ -175,6 +184,7 @@ function getScheduledConnections(travelDate) {
     travelDate,
     dataType: "static_gtfs_schedule",
     connections,
+    datasets,
     errors,
     summary: {
       connectionCount: connections.length,

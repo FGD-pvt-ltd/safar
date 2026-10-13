@@ -36,6 +36,7 @@ function getConnectionIndex(travelDate) {
     travelDate: result.travelDate,
     dataType: result.dataType,
     byDepartureStop,
+    datasets: result.datasets,
     summary: result.summary,
     errors: result.errors
   };

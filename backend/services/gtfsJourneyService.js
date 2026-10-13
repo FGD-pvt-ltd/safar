@@ -68,7 +68,7 @@ function findGtfsJourneys({
         arrivalTime: null,
         durationMinutes: 0,
         transfers: 0,
-        fare: null,
+        fare: 0,
         segments: [],
         dataType: "static_gtfs_schedule"
       }],
@@ -103,6 +103,33 @@ function findGtfsJourneys({
     if (current.stopId === destinationStopId) {
       const firstDeparture = current.firstDepartureSeconds;
 
+      // Look up verified fare if all segments belong to CMRL and have published fare rules
+      let fare = null;
+      const isAllCmrl =
+        current.segments.length > 0 &&
+        current.segments.every(s => s.source === "cmrl");
+
+      if (isAllCmrl && index.datasets && index.datasets.cmrl) {
+        const cmrl = index.datasets.cmrl;
+        const originStop = cmrl.stopsById.get(originStopId);
+        const destStop = cmrl.stopsById.get(destinationStopId);
+
+        if (
+          originStop &&
+          destStop &&
+          originStop.zone_id &&
+          destStop.zone_id &&
+          cmrl.farePriceByRuleKey
+        ) {
+          const rulePrice = cmrl.farePriceByRuleKey.get(
+            `${originStop.zone_id}>${destStop.zone_id}`
+          );
+          if (rulePrice !== undefined) {
+            fare = Number(rulePrice);
+          }
+        }
+      }
+
       results.push({
         originStopId,
         destinationStopId,
@@ -116,7 +143,7 @@ function findGtfsJourneys({
               (current.arrivalSeconds - firstDeparture) / 60
             ),
         transfers: current.transfers,
-        fare: null,
+        fare,
         segments: current.segments,
         dataType: "static_gtfs_schedule"
       });
