@@ -1,0 +1,1418 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#173c35" />
+  <title>SAFAR | Smart Journey Recovery</title>
+
+  <style>
+    :root {
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: #20332c;
+      background: #f4f7f5;
+      --green: #176b54;
+      --green-dark: #10513f;
+      --border: #dce6df;
+      --muted: #65766c;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    button, input, select { font: inherit; }
+
+    button, select, input[type="checkbox"], input[type="range"] {
+      cursor: pointer;
+    }
+
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid #a4d5bd;
+      outline-offset: 2px;
+    }
+
+    .site-header {
+      background: #173c35;
+      color: white;
+    }
+
+    .header-inner {
+      width: min(1560px, calc(100% - 64px));
+      margin: 0 auto;
+      padding: 27px 0 29px;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: 34px;
+      font-weight: 850;
+      letter-spacing: 4px;
+      line-height: 1.2;
+    }
+
+    .tagline {
+      margin: 8px 0 0;
+      color: #d6e9e0;
+      font-size: 14px;
+    }
+
+    main {
+      width: min(1560px, calc(100% - 64px));
+      margin: 32px auto 64px;
+    }
+
+    .status {
+      margin-bottom: 18px;
+      padding: 15px 19px;
+      border: 1px solid #d1e7d8;
+      border-radius: 12px;
+      background: #eaf5ed;
+      color: #24583c;
+      overflow-wrap: anywhere;
+    }
+
+    .status.error {
+      border-color: #edcccc;
+      background: #fff0f0;
+      color: #8c2727;
+    }
+
+    .notice {
+      margin-bottom: 26px;
+      padding: 17px 20px;
+      border: 1px solid #ecdca8;
+      border-radius: 12px;
+      background: #fff8e7;
+      color: #6d5218;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+      gap: 26px;
+    }
+
+    .card {
+      min-width: 0;
+      padding: 30px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 6px 24px rgba(24, 54, 42, 0.045);
+    }
+
+    .card-heading {
+      margin: 0 0 8px;
+      font-size: 23px;
+      line-height: 1.4;
+      font-weight: 750;
+    }
+
+    .card-description {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .field { margin-top: 19px; }
+
+    .field label, .field-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .field input:not([type="checkbox"]):not([type="range"]),
+    .field select {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      min-height: 48px;
+      padding: 12px 14px;
+      border: 1px solid #cfdbd3;
+      border-radius: 10px;
+      background: white;
+      color: #20332c;
+    }
+
+    .field input:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      background: #f2f4f2;
+    }
+
+    .budget-display {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin: 4px 0 13px;
+    }
+
+    .budget-value {
+      color: var(--green);
+      font-size: 32px;
+      font-weight: 850;
+      line-height: 1.2;
+    }
+
+    .budget-type {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .budget-range {
+      display: block;
+      width: 100%;
+      margin: 12px 0;
+      accent-color: var(--green);
+    }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .checkbox-row input {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--green);
+    }
+
+    .button-stack {
+      display: grid;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 17px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: var(--green);
+      color: white;
+      font-size: 14px;
+      font-weight: 750;
+      text-align: center;
+      line-height: 1.4;
+      transition: background 0.15s ease;
+    }
+
+    .btn:hover:not(:disabled) { background: var(--green-dark); }
+
+    .btn:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    .btn-secondary {
+      border-color: #cadbd2;
+      background: #e6f0eb;
+      color: #173c35;
+    }
+
+    .btn-secondary:hover:not(:disabled) { background: #d9e9e0; }
+
+    .btn-danger { background: #a93232; }
+    .btn-danger:hover:not(:disabled) { background: #862727; }
+
+    .helper-text {
+      margin: 15px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .inline-alert {
+      margin-top: 18px;
+      padding: 15px 17px;
+      border: 1px solid #ecdca8;
+      border-radius: 10px;
+      background: #fff8e7;
+      color: #6d5218;
+      font-size: 14px;
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+
+    .inline-alert.error {
+      border-color: #edcccc;
+      background: #fff0f0;
+      color: #8c2727;
+    }
+
+    .results-section {
+      grid-column: 1 / -1;
+      min-width: 0;
+      padding: 32px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: white;
+      box-shadow: 0 6px 24px rgba(24, 54, 42, 0.045);
+      scroll-margin-top: 24px;
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+
+    .results-title {
+      margin: 0;
+      font-size: 25px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .results-subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .route-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: stretch;
+      gap: 22px;
+      margin-top: 25px;
+    }
+
+    .route-card {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 25px;
+      border: 1px solid #dce6df;
+      border-radius: 15px;
+      background: white;
+      overflow-wrap: anywhere;
+    }
+
+    .route-card.best {
+      border: 2px solid #278263;
+      background: #f8fcf9;
+    }
+
+    .route-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      align-self: flex-start;
+      padding: 5px 10px;
+      border-radius: 20px;
+      background: #e6f1eb;
+      color: #17513f;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .pill-neutral {
+      background: #edf0ed;
+      color: #53635a;
+    }
+
+    .route-title {
+      margin: 17px 0 10px;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+
+    .route-score {
+      margin: 3px 0;
+      color: var(--green);
+      font-size: 36px;
+      font-weight: 850;
+      line-height: 1.3;
+    }
+
+    .route-score small {
+      color: #53665b;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .score-caption {
+      margin: 2px 0 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .route-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 5px 0 18px;
+    }
+
+    .route-metric {
+      min-width: 0;
+      padding: 13px 10px;
+      border-radius: 10px;
+      background: #eff5f1;
+      overflow-wrap: anywhere;
+    }
+
+    .route-metric-label {
+      display: block;
+      color: #65766c;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .route-metric-value {
+      display: block;
+      margin-top: 6px;
+      color: #20332c;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .route-path {
+      margin: 12px 0;
+      font-size: 15px;
+      font-weight: 750;
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+
+    .route-card h4 {
+      margin: 18px 0 6px;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .route-explanation {
+      margin: 0;
+      color: #4c6255;
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    .segments {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .segment {
+      min-width: 0;
+      padding: 14px;
+      border-left: 4px solid #278263;
+      border-radius: 0 10px 10px 0;
+      background: #f6f9f7;
+      overflow-wrap: anywhere;
+    }
+
+    .segment strong {
+      display: block;
+      margin: 8px 0 4px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .segment-meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .route-notice {
+      margin-top: auto;
+      padding-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .disruption-list { margin-top: 8px; }
+
+    .disruption-item {
+      padding: 16px 0;
+      border-bottom: 1px solid #e7ece8;
+      overflow-wrap: anywhere;
+    }
+
+    .disruption-item:last-child { border-bottom: 0; }
+    .disruption-item p { margin: 7px 0; }
+    .disruption-item .btn { margin-top: 10px; }
+
+    .network-metrics,
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 13px;
+      margin: 20px 0;
+    }
+
+    .stat-card {
+      min-width: 0;
+      padding: 17px;
+      border-radius: 12px;
+      background: #eff5f1;
+    }
+
+    .stat-label {
+      display: block;
+      color: #65766c;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 7px;
+      font-size: 26px;
+      font-weight: 850;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    .empty-state {
+      margin-top: 22px;
+      padding: 28px;
+      border: 1px dashed #cbd9d0;
+      border-radius: 12px;
+      background: #f8faf8;
+      color: #53665b;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    .full-width { grid-column: 1 / -1; }
+
+    .debug-card pre {
+      max-width: 100%;
+      max-height: 450px;
+      margin: 0;
+      padding: 18px;
+      border-radius: 11px;
+      background: #172b2a;
+      color: #e0f3eb;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      overflow: auto;
+    }
+
+    details { margin-top: 15px; }
+
+    summary {
+      cursor: pointer;
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1100px) {
+      main, .header-inner { width: calc(100% - 40px); }
+      .dashboard { gap: 20px; }
+      .card, .results-section { padding: 24px; }
+
+      .route-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 17px;
+      }
+
+      .route-card { padding: 21px; }
+    }
+
+    @media (max-width: 760px) {
+      main, .header-inner { width: calc(100% - 28px); }
+      main { margin-top: 20px; margin-bottom: 36px; }
+      .header-inner { padding: 23px 0; }
+      .brand { font-size: 29px; }
+
+      .dashboard {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+      }
+
+      .card, .results-section {
+        grid-column: auto;
+        padding: 21px;
+        border-radius: 13px;
+      }
+
+      .card-heading { font-size: 21px; }
+      .results-title { font-size: 22px; }
+
+      .route-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .route-card { padding: 21px; }
+      .network-metrics, .comparison-grid { gap: 8px; }
+      .stat-card { padding: 11px; }
+      .stat-value { font-size: 21px; }
+      .notice { padding: 14px; }
+    }
+
+    @media (max-width: 400px) {
+      .route-metrics { gap: 6px; }
+      .route-metric { padding: 10px 7px; }
+      .route-metric-value { font-size: 17px; }
+
+      .network-metrics, .comparison-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <h1 class="brand">SAFAR</h1>
+      <p class="tagline">Smart Journey Recovery · Chennai Transit Prototype</p>
+    </div>
+  </header>
+
+  <main>
+    <div id="health" class="status" role="status" aria-live="polite">
+      Connecting to SAFAR backend...
+    </div>
+
+    <div class="notice">
+      <strong>Prototype data notice:</strong>
+      Route durations, fares and disruptions use simulated development data.
+      Scores compare candidate routes according to your preference; they are
+      not reliability probabilities or live Chennai transit information.
+    </div>
+
+    <div class="dashboard">
+
+      <!-- 1. Journey planner -->
+      <section class="card">
+        <h2 class="card-heading">Plan your journey</h2>
+        <p class="card-description">
+          Choose your origin, destination, travel preference and budget.
+        </p>
+
+        <div class="field">
+          <label for="origin">Starting point</label>
+          <select id="origin" required>
+            <option value="">Loading stops...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="destination">Destination</label>
+          <select id="destination" required>
+            <option value="">Loading stops...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="preference">What matters most?</label>
+          <select id="preference">
+            <option value="balanced">Balanced — time, fare and transfers</option>
+            <option value="fastest">Fastest estimated journey</option>
+            <option value="cheapest">Cheapest estimated journey</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Maximum route budget</span>
+
+          <div class="budget-display">
+            <output id="budgetValue" class="budget-value" for="budget">₹50</output>
+            <span id="budgetType" class="budget-type">Maximum fare</span>
+          </div>
+
+          <input
+            id="budget"
+            class="budget-range"
+            type="range"
+            min="0"
+            max="200"
+            step="5"
+            value="50"
+            aria-label="Maximum route budget in rupees"
+          />
+
+          <div class="range-labels">
+            <span>₹0</span>
+            <span>₹200</span>
+          </div>
+
+          <label class="checkbox-row" for="noBudget">
+            <input id="noBudget" type="checkbox" />
+            No budget limit
+          </label>
+        </div>
+
+        <div class="button-stack">
+          <button id="searchButton" class="btn" type="button">
+            Find Alternative Routes
+          </button>
+          <button id="recoveryButton" class="btn btn-secondary" type="button">
+            Compare Before and After Disruption
+          </button>
+        </div>
+
+        <p class="helper-text">
+          SAFAR will show up to three alternatives, ranked by your preference
+          and subject to available routes.
+        </p>
+      </section>
+
+      <!-- 2. Disruption simulator -->
+      <section class="card">
+        <h2 class="card-heading">Simulate a disruption</h2>
+        <p class="card-description">
+          Apply a test delay or cancellation and see how recommendations change.
+        </p>
+
+        <div class="field">
+          <label for="connection">Connection</label>
+          <select id="connection">
+            <option value="">Loading connections...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="disruptionStatus">Disruption type</label>
+          <select id="disruptionStatus">
+            <option value="delayed">Delayed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="delayMinutes">Delay (minutes)</label>
+          <input id="delayMinutes" type="number" min="1" max="240" step="1" value="15" />
+        </div>
+
+        <div class="field">
+          <label for="reason">Reason</label>
+          <input
+            id="reason"
+            type="text"
+            maxlength="200"
+            value="Simulated service disruption"
+          />
+        </div>
+
+        <div class="button-stack">
+          <button id="simulateButton" class="btn" type="button">
+            Apply Disruption
+          </button>
+          <button id="clearAllButton" class="btn btn-danger" type="button">
+            Clear All Disruptions
+          </button>
+        </div>
+
+        <p class="helper-text">
+          Try cancelling C1 or delaying C17. These are simulated events, not official alerts.
+        </p>
+      </section>
+
+      <!-- 3. Recommended journeys -->
+      <section class="results-section" id="resultsSection">
+        <div class="results-header">
+          <div>
+            <h2 class="results-title">Recommended journeys</h2>
+            <p class="results-subtitle">
+              Compare estimated travel times, fares, transfers and explanations.
+            </p>
+          </div>
+          <span id="resultCount" class="pill pill-neutral">Awaiting search</span>
+        </div>
+
+        <div id="journeyResult" aria-live="polite">
+          <div class="empty-state">
+            <strong>Your journey options will appear here.</strong><br />
+            Choose your journey and select <em>Find Alternative Routes</em>.
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Before-and-after comparison: directly below recommendations -->
+      <section class="card full-width" id="comparisonSection">
+        <h2 class="card-heading">Before-and-after comparison</h2>
+        <p class="card-description">
+          Compare the best route without simulated disruptions with the current recommendation.
+        </p>
+
+        <div id="comparison">
+          <div class="empty-state">
+            Select “Compare Before and After Disruption” to see the comparison.
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Active disruptions -->
+      <section class="card">
+        <h2 class="card-heading">Active disruptions</h2>
+        <p class="card-description">
+          View and manage simulated disruptions affecting route calculations.
+        </p>
+
+        <div id="disruptionList" aria-live="polite">
+          Loading disruptions...
+        </div>
+
+        <button id="refreshButton" class="btn btn-secondary" type="button">
+          Refresh Data
+        </button>
+      </section>
+
+      <!-- 6. Network overview -->
+      <section class="card">
+        <h2 class="card-heading">Network overview</h2>
+        <p class="card-description">
+          Summary of the currently loaded development network.
+        </p>
+        <div id="networkSummary">Loading network...</div>
+      </section>
+
+      <!-- 7. API diagnostics -->
+      <section class="card full-width debug-card">
+        <h2 class="card-heading">API diagnostics</h2>
+        <p class="card-description">
+          Technical responses for debugging your backend.
+        </p>
+        <pre id="debug">SAFAR is ready.</pre>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    "use strict";
+
+    const $ = id => document.getElementById(id);
+
+    let stops = [];
+    let connections = [];
+    let searchSequence = 0;
+
+    async function api(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+
+      let data;
+
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error(`Invalid server response (${response.status}).`);
+      }
+
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || `Request failed (${response.status}).`);
+      }
+
+      return data;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      })[char]);
+    }
+
+    function setDebug(data) {
+      $("debug").textContent = JSON.stringify(data, null, 2);
+    }
+
+    function setHealth(message, isError = false) {
+      $("health").textContent = message;
+      $("health").classList.toggle("error", isError);
+    }
+
+    function showAlert(element, message, isError = false) {
+      element.innerHTML = `
+        <div class="inline-alert ${isError ? "error" : ""}">
+          ${escapeHtml(message)}
+        </div>
+      `;
+    }
+
+    function populateSelect(id, items, getValue, getLabel) {
+      const select = $(id);
+      const oldValue = select.value;
+      select.replaceChildren();
+
+      for (const item of items) {
+        const option = document.createElement("option");
+        option.value = getValue(item);
+        option.textContent = getLabel(item);
+        select.appendChild(option);
+      }
+
+      if (items.some(item => getValue(item) === oldValue)) {
+        select.value = oldValue;
+      }
+    }
+
+    function stopName(id) {
+      return stops.find(stop => stop.id === id)?.name || id || "Unknown stop";
+    }
+
+    function journeyRequest() {
+      return {
+        originId: $("origin").value,
+        destinationId: $("destination").value,
+        preference: $("preference").value,
+        maxFare: $("noBudget").checked ? null : Number($("budget").value)
+      };
+    }
+
+    function validateJourney() {
+      if (!$("origin").value || !$("destination").value) {
+        throw new Error("Please select both an origin and a destination.");
+      }
+
+      if (!$("noBudget").checked) {
+        const budget = Number($("budget").value);
+        if (!Number.isFinite(budget) || budget < 0) {
+          throw new Error("Please select a valid budget.");
+        }
+      }
+    }
+
+    function formatMinutes(minutes) {
+      const value = Number(minutes);
+      if (!Number.isFinite(value) || value < 0) return "Unavailable";
+
+      const hours = Math.floor(value / 60);
+      const remaining = value % 60;
+
+      if (hours === 0) return `${remaining} min`;
+      if (remaining === 0) return `${hours} hr`;
+      return `${hours} hr ${remaining} min`;
+    }
+
+    function scrollToResults() {
+      $("resultsSection").scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+
+    function scrollToComparison() {
+      $("comparisonSection").scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+
+    function updateBudget() {
+      const noLimit = $("noBudget").checked;
+      $("budget").disabled = noLimit;
+      $("budgetValue").textContent = noLimit
+        ? "Any fare"
+        : `₹${Number($("budget").value)}`;
+      $("budgetType").textContent = noLimit ? "No maximum" : "Maximum fare";
+    }
+
+    async function loadHealth() {
+      const data = await api("/api/health");
+      setHealth(`✓ ${data.message}`);
+    }
+
+    async function loadNetwork() {
+      const [stopData, connectionData] = await Promise.all([
+        api("/api/stops"),
+        api("/api/connections")
+      ]);
+
+      if (!Array.isArray(stopData.stops) ||
+          !Array.isArray(connectionData.connections)) {
+        throw new Error("Unexpected network data returned by the backend.");
+      }
+
+      stops = stopData.stops;
+      connections = connectionData.connections;
+
+      populateSelect("origin", stops, s => s.id, s => s.name);
+      populateSelect("destination", stops, s => s.id, s => s.name);
+
+      populateSelect(
+        "connection",
+        connections,
+        c => c.id,
+        c => `${c.id}: ${stopName(c.from)} ↔ ${stopName(c.to)} (${c.mode})`
+      );
+
+      const modes = [...new Set(connections.map(c => c.mode))];
+
+      $("networkSummary").innerHTML = `
+        <div class="network-metrics">
+          <div class="stat-card">
+            <span class="stat-label">Stops</span>
+            <strong class="stat-value">${stops.length}</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Connections</span>
+            <strong class="stat-value">${connections.length}</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Modes</span>
+            <strong class="stat-value">${modes.length}</strong>
+          </div>
+        </div>
+        <p><strong>Transport modes</strong></p>
+        <p>${modes.map(m => `<span class="pill">${escapeHtml(m)}</span>`).join(" ")}</p>
+        <p class="helper-text">
+          Data confidence: low. Values are illustrative and require validation.
+        </p>
+      `;
+    }
+
+    function renderSegments(segments) {
+      if (!Array.isArray(segments) || segments.length === 0) {
+        return `<p class="helper-text">No travel required.</p>`;
+      }
+
+      return `
+        <div class="segments">
+          ${segments.map(segment => `
+            <div class="segment">
+              <span class="pill">${escapeHtml(segment.mode)}</span>
+              <strong>
+                ${escapeHtml(segment.fromName || stopName(segment.from))}
+                → ${escapeHtml(segment.toName || stopName(segment.to))}
+              </strong>
+              <div class="segment-meta">
+                ${formatMinutes(segment.durationMinutes)}
+                · Sample fare ₹${escapeHtml(segment.fare)}
+                ${Number(segment.delayMinutes) > 0
+                  ? ` · Includes ${escapeHtml(segment.delayMinutes)} min simulated delay`
+                  : ""}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderRoute(route, index) {
+      const score = Number(route.score);
+      const fare = Number(route.fare);
+      const transfers = Number(route.transfers);
+
+      return `
+        <article class="route-card ${index === 0 ? "best" : ""}">
+          <div class="route-labels">
+            <span class="pill">Option ${escapeHtml(route.rank ?? index + 1)}</span>
+            ${index === 0 ? '<span class="pill">Top match</span>' : ""}
+          </div>
+
+          <h3 class="route-title">
+            ${escapeHtml(route.recommendation || "Alternative route")}
+          </h3>
+
+          <div class="route-score">
+            ${Number.isFinite(score) ? score : "—"}<small> / 100</small>
+          </div>
+
+          <p class="score-caption">
+            Relative route score, not a reliability probability.
+          </p>
+
+          <div class="route-metrics">
+            <div class="route-metric">
+              <span class="route-metric-label">Estimated time</span>
+              <strong class="route-metric-value">${formatMinutes(route.durationMinutes)}</strong>
+            </div>
+            <div class="route-metric">
+              <span class="route-metric-label">Sample fare</span>
+              <strong class="route-metric-value">${Number.isFinite(fare) ? `₹${fare}` : "—"}</strong>
+            </div>
+            <div class="route-metric">
+              <span class="route-metric-label">Mode changes</span>
+              <strong class="route-metric-value">${Number.isFinite(transfers) ? transfers : "—"}</strong>
+            </div>
+          </div>
+
+          <p class="route-path">
+            ${escapeHtml(route.origin?.name || stopName(route.originId))}
+            → ${escapeHtml(route.destination?.name || stopName(route.destinationId))}
+          </p>
+
+          <h4>Route details</h4>
+          ${renderSegments(route.segments)}
+
+          <h4>Why this route?</h4>
+          <p class="route-explanation">
+            ${escapeHtml(route.explanation || "No explanation provided.")}
+          </p>
+
+          <div class="route-notice">
+            Data confidence: ${escapeHtml(route.dataConfidence || "low")}.
+            ${escapeHtml(route.dataNotice || "Illustrative data only.")}
+          </div>
+
+          ${Array.isArray(route.connectionIds) && route.connectionIds.length
+            ? `<details>
+                <summary>View connection IDs</summary>
+                <p class="helper-text">${route.connectionIds.map(escapeHtml).join(" → ")}</p>
+              </details>`
+            : ""}
+        </article>
+      `;
+    }
+
+    function renderRoutes(data) {
+      const target = $("journeyResult");
+      const routes = Array.isArray(data.routes) ? data.routes : [];
+
+      $("resultCount").textContent =
+        `${routes.length} route${routes.length === 1 ? "" : "s"}`;
+
+      if (!routes.length) {
+        showAlert(
+          target,
+          data.message || "No route found. Try different stops or clear disruptions.",
+          false
+        );
+        return;
+      }
+
+      const warning = data.budgetExceeded
+        ? `<div class="inline-alert">
+             <strong>Budget exceeded.</strong>
+             ${escapeHtml(data.message || "No route fits your selected budget.")}
+           </div>`
+        : "";
+
+      target.innerHTML = `
+        ${warning}
+        <p class="results-subtitle">${escapeHtml(data.message || "")}</p>
+        <div class="route-grid">
+          ${routes.map((route, index) => renderRoute(route, index)).join("")}
+        </div>
+      `;
+    }
+
+    async function searchRoutes({ scroll = true } = {}) {
+      const sequence = ++searchSequence;
+      const button = $("searchButton");
+
+      try {
+        validateJourney();
+        button.disabled = true;
+        button.textContent = "Finding routes...";
+
+        const data = await api("/api/journeys/alternatives", {
+          method: "POST",
+          body: JSON.stringify(journeyRequest())
+        });
+
+        if (sequence !== searchSequence) return;
+
+        renderRoutes(data);
+        setDebug(data);
+      } catch (error) {
+        showAlert($("journeyResult"), error.message, true);
+        $("resultCount").textContent = "Search failed";
+        setDebug({ error: error.message });
+      } finally {
+        button.disabled = false;
+        button.textContent = "Find Alternative Routes";
+        if (scroll) scrollToResults();
+      }
+    }
+
+    function comparisonMetric(label, route) {
+      if (!route) {
+        return `
+          <div class="stat-card">
+            <span class="stat-label">${escapeHtml(label)}</span>
+            <strong class="stat-value">No route</strong>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="stat-card">
+          <span class="stat-label">${escapeHtml(label)}</span>
+          <strong class="stat-value">${formatMinutes(route.durationMinutes)}</strong>
+          <span class="stat-label">Sample fare: ₹${escapeHtml(route.fare)}</span>
+        </div>
+      `;
+    }
+
+    async function compareRecovery() {
+      const button = $("recoveryButton");
+
+      try {
+        validateJourney();
+        button.disabled = true;
+        button.textContent = "Comparing routes...";
+
+        const data = await api("/api/recovery/recommendations", {
+          method: "POST",
+          body: JSON.stringify(journeyRequest())
+        });
+
+        const baseline = data.baseline?.routes?.[0] || null;
+        const recommended = data.recommendation?.routes?.[0] || null;
+
+        $("comparison").innerHTML = `
+          <div class="comparison-grid">
+            ${comparisonMetric("Before disruption", baseline)}
+            ${comparisonMetric("After disruption", recommended)}
+            <div class="stat-card">
+              <span class="stat-label">Active disruptions</span>
+              <strong class="stat-value">${Number(data.activeDisruptions) || 0}</strong>
+              <span class="stat-label">Simulated events</span>
+            </div>
+          </div>
+          <p class="helper-text">
+            Both calculations use the selected budget and preference.
+            The baseline excludes simulated disruptions.
+          </p>
+        `;
+
+        if (data.recommendation) renderRoutes(data.recommendation);
+        setDebug(data);
+      } catch (error) {
+        showAlert($("comparison"), error.message, true);
+        setDebug({ error: error.message });
+      } finally {
+        button.disabled = false;
+        button.textContent = "Compare Before and After Disruption";
+        scrollToComparison();
+      }
+    }
+
+    async function loadDisruptions() {
+      const target = $("disruptionList");
+      const data = await api("/api/disruptions");
+      const items = Array.isArray(data.disruptions) ? data.disruptions : [];
+
+      if (!items.length) {
+        target.innerHTML = `<div class="empty-state">No active simulated disruptions.</div>`;
+        return;
+      }
+
+      target.innerHTML = items.map(item => {
+        const connection = connections.find(c => c.id === item.connectionId);
+
+        return `
+          <article class="disruption-item">
+            <span class="pill">${escapeHtml(item.status)}</span>
+            <p>
+              <strong>${escapeHtml(item.connectionId)}</strong>:
+              ${escapeHtml(stopName(connection?.from))}
+              ↔ ${escapeHtml(stopName(connection?.to))}
+            </p>
+            <p class="helper-text">
+              ${item.status === "delayed"
+                ? `Delay: ${escapeHtml(item.delayMinutes)} minutes`
+                : "Connection cancelled in this simulation."}
+            </p>
+            <p class="helper-text">${escapeHtml(item.reason)}</p>
+            <button class="btn btn-danger" type="button"
+              data-clear="${escapeHtml(item.connectionId)}">
+              Clear This Disruption
+            </button>
+          </article>
+        `;
+      }).join("");
+
+      target.querySelectorAll("[data-clear]").forEach(button => {
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+
+          try {
+            const data = await api(
+              `/api/disruptions/${encodeURIComponent(button.dataset.clear)}`,
+              { method: "DELETE" }
+            );
+
+            setDebug(data);
+            await loadDisruptions();
+            await searchRoutes({ scroll: false });
+          } catch (error) {
+            setDebug({ error: error.message });
+            button.disabled = false;
+          }
+        });
+      });
+    }
+
+    async function applyDisruption() {
+      const button = $("simulateButton");
+
+      try {
+        const connectionId = $("connection").value;
+
+        if (!connections.some(c => c.id === connectionId)) {
+          throw new Error("Please select a valid connection.");
+        }
+
+        const status = $("disruptionStatus").value;
+        const delayMinutes = Number($("delayMinutes").value);
+
+        if (status === "delayed" &&
+            (!Number.isInteger(delayMinutes) ||
+             delayMinutes < 1 || delayMinutes > 240)) {
+          throw new Error("Enter a whole-number delay from 1 to 240 minutes.");
+        }
+
+        button.disabled = true;
+        button.textContent = "Applying disruption...";
+
+        const data = await api("/api/disruptions", {
+          method: "POST",
+          body: JSON.stringify({
+            connectionId,
+            status,
+            delayMinutes,
+            reason: $("reason").value.trim() || "Simulated service disruption"
+          })
+        });
+
+        setDebug(data);
+        await loadDisruptions();
+        await searchRoutes({ scroll: true });
+      } catch (error) {
+        showAlert($("disruptionList"), error.message, true);
+        setDebug({ error: error.message });
+        scrollToResults();
+      } finally {
+        button.disabled = false;
+        button.textContent = "Apply Disruption";
+      }
+    }
+
+    async function clearAllDisruptions() {
+      const button = $("clearAllButton");
+
+      try {
+        button.disabled = true;
+
+        const data = await api("/api/disruptions", { method: "DELETE" });
+        setDebug(data);
+        await loadDisruptions();
+        await searchRoutes({ scroll: true });
+      } catch (error) {
+        setDebug({ error: error.message });
+        showAlert($("disruptionList"), error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function refreshAll() {
+      const button = $("refreshButton");
+
+      try {
+        button.disabled = true;
+        button.textContent = "Refreshing...";
+
+        await loadHealth();
+        await loadNetwork();
+        await loadDisruptions();
+
+        setDebug({
+          success: true,
+          message: "Network, backend status and disruptions refreshed."
+        });
+      } catch (error) {
+        setHealth(`Refresh failed: ${error.message}`, true);
+        setDebug({ error: error.message });
+      } finally {
+        button.disabled = false;
+        button.textContent = "Refresh Data";
+      }
+    }
+
+    function updateDisruptionFields() {
+      $("delayMinutes").disabled =
+        $("disruptionStatus").value === "cancelled";
+    }
+
+    $("budget").addEventListener("input", updateBudget);
+    $("noBudget").addEventListener("change", updateBudget);
+    $("disruptionStatus").addEventListener("change", updateDisruptionFields);
+
+    $("searchButton").addEventListener("click", () => searchRoutes());
+    $("recoveryButton").addEventListener("click", compareRecovery);
+    $("simulateButton").addEventListener("click", applyDisruption);
+    $("clearAllButton").addEventListener("click", clearAllDisruptions);
+    $("refreshButton").addEventListener("click", refreshAll);
+
+    async function init() {
+      updateBudget();
+      updateDisruptionFields();
+
+      try {
+        await loadHealth();
+        await loadNetwork();
+        await loadDisruptions();
+      } catch (error) {
+        setHealth(`Unable to initialize SAFAR: ${error.message}`, true);
+        setDebug({ error: error.message });
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
